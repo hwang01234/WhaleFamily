@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, ShoppingCart, Award, MessageSquare, BookOpen, Plus, Trash2, CheckCircle } from 'lucide-react';
+import { Calendar, ShoppingCart, Award, MessageSquare, BookOpen, Trash2 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 
-// Firebase 초기화 (Vercel 환경 변수 연동)
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -18,20 +17,27 @@ const db = getFirestore(app);
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('calendar');
+
+  // 장보기 상태
   const [shoppingItems, setShoppingItems] = useState([]);
-  const [newItem, setNewItem] = useState('');
+  const [newShopping, setNewShopping] = useState('');
+
+  // 메모판 상태
   const [notices, setNotices] = useState([]);
   const [newNotice, setNewNotice] = useState('');
 
-  // 구성원 컬러 스타일 정의
+  // 캘린더 일정 상태
+  const [events, setEvents] = useState([]);
+  const [newEventText, setNewEventText] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+
   const members = [
-    { name: '아빠', role: '데님 블루', bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-300' },
-    { name: '엄마', role: '코랄 핑크', bg: 'bg-pink-100', text: 'text-pink-800', border: 'border-pink-300' },
-    { name: '첫째', role: '세이지 그린', bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
-    { name: '둘째', role: '버터 옐로우', bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-300' },
+    { name: '아빠', bg: 'bg-blue-100', text: 'text-blue-800' },
+    { name: '엄마', bg: 'bg-pink-100', text: 'text-pink-800' },
+    { name: '첫째', bg: 'bg-emerald-100', text: 'text-emerald-800' },
+    { name: '둘째', bg: 'bg-amber-100', text: 'text-amber-800' },
   ];
 
-  // 데이터 불러오기 (Firestore)
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -40,44 +46,65 @@ export default function App() {
 
         const noticeSnap = await getDocs(collection(db, 'notices'));
         setNotices(noticeSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const eventSnap = await getDocs(collection(db, 'events'));
+        setEvents(eventSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (e) {
-        console.error("데이터 로딩 중 오류:", e);
+        console.error("데이터 로딩 오류:", e);
       }
     };
     fetchData();
   }, []);
 
-  // 장보기 추가
-  const addShoppingItem = async (e) => {
+  // 장보기 추가/삭제
+  const addShopping = async (e) => {
     e.preventDefault();
-    if (!newItem.trim()) return;
-    try {
-      const docRef = await addDoc(collection(db, 'shopping'), { text: newItem, completed: false });
-      setShoppingItems([...shoppingItems, { id: docRef.id, text: newItem, completed: false }]);
-      setNewItem('');
-    } catch (e) {
-      console.error("추가 실패:", e);
-    }
+    if (!newShopping.trim()) return;
+    const docRef = await addDoc(collection(db, 'shopping'), { text: newShopping });
+    setShoppingItems([...shoppingItems, { id: docRef.id, text: newShopping }]);
+    setNewShopping('');
+  };
+  const deleteShopping = async (id) => {
+    await deleteDoc(doc(db, 'shopping', id));
+    setShoppingItems(shoppingItems.filter(item => item.id !== id));
   };
 
-  // 장보기 삭제
-  const deleteShoppingItem = async (id) => {
-    try {
-      await deleteDoc(doc(db, 'shopping', id));
-      setShoppingItems(shoppingItems.filter(item => item.id !== id));
-    } catch (e) {
-      console.error("삭제 실패:", e);
-    }
+  // 메모판 추가/삭제
+  const addNotice = async (e) => {
+    e.preventDefault();
+    if (!newNotice.trim()) return;
+    const docRef = await addDoc(collection(db, 'notices'), { text: newNotice });
+    setNotices([...notices, { id: docRef.id, text: newNotice }]);
+    setNewNotice('');
+  };
+  const deleteNotice = async (id) => {
+    await deleteDoc(doc(db, 'notices', id));
+    setNotices(notices.filter(n => n.id !== id));
+  };
+
+  // 캘린더 일정 추가/삭제
+  const addEvent = async (e) => {
+    e.preventDefault();
+    if (!newEventText.trim()) return;
+    const eventData = { text: newEventText, date: newEventDate || '날짜 미지정' };
+    const docRef = await addDoc(collection(db, 'events'), eventData);
+    setEvents([...events, { id: docRef.id, ...eventData }]);
+    setNewEventText('');
+    setNewEventDate('');
+  };
+  const deleteEvent = async (id) => {
+    await deleteDoc(doc(db, 'events', id));
+    setEvents(events.filter(ev => ev.id !== id));
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800 pb-20">
+    <div className="min-h-screen bg-stone-50 text-stone-800 pb-24">
       {/* 상단 헤더 */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-10 px-4 py-3 shadow-sm">
         <h1 className="text-xl font-bold text-center text-stone-700">🐳 Whale Family Hub</h1>
         <div className="flex justify-center gap-2 mt-2">
           {members.map((m, idx) => (
-            <span key={idx} className={`text-xs px-2 py-0.5 rounded-full font-medium ${m.bg} ${m.text}`}>
+            <span key={idx} className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${m.bg} ${m.text}`}>
               {m.name}
             </span>
           ))}
@@ -86,24 +113,53 @@ export default function App() {
 
       {/* 메인 콘텐츠 영역 */}
       <main className="max-w-md mx-auto p-4">
+        {/* 캘린더 탭 */}
         {activeTab === 'calendar' && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100">
             <h2 className="font-bold text-lg mb-3 flex items-center gap-2">📅 공유 캘린더</h2>
-            <p className="text-sm text-stone-500">가족의 소중한 일정과 일정을 한눈에 관리하세요.</p>
-            <div className="mt-4 p-6 bg-stone-50 rounded-xl text-center text-stone-400">
-              캘린더 기능이 준비 중입니다.
-            </div>
+            <form onSubmit={addEvent} className="flex flex-col gap-2 mb-4">
+              <input
+                type="date"
+                value={newEventDate}
+                onChange={(e) => setNewEventDate(e.target.value)}
+                className="px-3 py-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-400"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newEventText}
+                  onChange={(e) => setNewEventText(e.target.value)}
+                  placeholder="일정을 입력하세요 (예: 가족 나들이)"
+                  className="flex-1 px-3 py-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-400"
+                />
+                <button type="submit" className="bg-stone-800 text-white px-4 py-2 rounded-xl text-sm font-medium">추가</button>
+              </div>
+            </form>
+            <ul className="space-y-2">
+              {events.map((ev) => (
+                <li key={ev.id} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
+                  <div>
+                    <span className="text-xs text-blue-600 font-semibold block">{ev.date}</span>
+                    <span className="text-sm text-stone-700">{ev.text}</span>
+                  </div>
+                  <button onClick={() => deleteEvent(ev.id)} className="text-stone-400 hover:text-red-500">
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
+        {/* 장보기 탭 */}
         {activeTab === 'shopping' && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100">
             <h2 className="font-bold text-lg mb-3 flex items-center gap-2">🛒 실시간 장보기 리스트</h2>
-            <form onSubmit={addShoppingItem} className="flex gap-2 mb-4">
+            <form onSubmit={addShopping} className="flex gap-2 mb-4">
               <input
                 type="text"
-                value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
+                value={newShopping}
+                onChange={(e) => setNewShopping(e.target.value)}
                 placeholder="필요한 물품을 입력하세요"
                 className="flex-1 px-3 py-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-400"
               />
@@ -113,7 +169,7 @@ export default function App() {
               {shoppingItems.map((item) => (
                 <li key={item.id} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
                   <span className="text-sm">{item.text}</span>
-                  <button onClick={() => deleteShoppingItem(item.id)} className="text-stone-400 hover:text-red-500">
+                  <button onClick={() => deleteShopping(item.id)} className="text-stone-400 hover:text-red-500">
                     <Trash2 size={16} />
                   </button>
                 </li>
@@ -122,6 +178,7 @@ export default function App() {
           </div>
         )}
 
+        {/* 목표/보상 탭 */}
         {activeTab === 'rewards' && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100">
             <h2 className="font-bold text-lg mb-3 flex items-center gap-2">🏆 가족 목표 & 보상</h2>
@@ -132,16 +189,34 @@ export default function App() {
           </div>
         )}
 
+        {/* 메모판 탭 */}
         {activeTab === 'notice' && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100">
             <h2 className="font-bold text-lg mb-3 flex items-center gap-2">📝 메모판 / 공지사항</h2>
-            <p className="text-sm text-stone-500">가족들에게 전할 중요한 메모나 공지를 남기세요.</p>
-            <div className="mt-4 p-6 bg-stone-50 rounded-xl text-center text-stone-400">
-              등록된 공지사항이 없습니다.
-            </div>
+            <form onSubmit={addNotice} className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={newNotice}
+                onChange={(e) => setNewNotice(e.target.value)}
+                placeholder="가족에게 남길 메모를 입력하세요"
+                className="flex-1 px-3 py-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-400"
+              />
+              <button type="submit" className="bg-stone-800 text-white px-4 py-2 rounded-xl text-sm font-medium">등록</button>
+            </form>
+            <ul className="space-y-2">
+              {notices.map((notice) => (
+                <li key={notice.id} className="flex justify-between items-center p-3 bg-stone-50 rounded-xl border border-stone-100">
+                  <span className="text-sm">{notice.text}</span>
+                  <button onClick={() => deleteNotice(notice.id)} className="text-stone-400 hover:text-red-500">
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
+        {/* QTin 탭 */}
         {activeTab === 'qt' && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100">
             <h2 className="font-bold text-lg mb-3 flex items-center gap-2">📖 QTin 오늘의 묵상</h2>
@@ -153,7 +228,7 @@ export default function App() {
         )}
       </main>
 
-      {/* 하단 네비게이션 바 (모바일 최적화) */}
+      {/* 하단 네비게이션 바 */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex justify-around py-2 px-1 max-w-md mx-auto z-10 shadow-lg">
         <button onClick={() => setActiveTab('calendar')} className={`flex flex-col items-center flex-1 py-1 ${activeTab === 'calendar' ? 'text-blue-600 font-bold' : 'text-stone-400'}`}>
           <Calendar size={20} />
